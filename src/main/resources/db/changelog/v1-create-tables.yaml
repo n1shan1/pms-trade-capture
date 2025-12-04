@@ -1,0 +1,139 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-tables
+      author: ingestion-team
+      changes:
+        - createTable:
+            tableName: safe_store_trade
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: "gen_random_uuid()"
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: received_at
+                  type: timestamptz
+                  defaultValueComputed: "now()"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: portfolio_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: trade_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: symbol
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: side
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: price_per_stock
+                  type: double precision
+                  constraints:
+                    nullable: false
+              - column:
+                  name: quantity
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: timestamp
+                  type: timestamp
+                  constraints:
+                    nullable: false
+
+        - addUniqueConstraint:
+            tableName: safe_store_trade
+            columnNames: trade_id
+            constraintName: ux_safe_store_trade_tradeid
+
+        - createTable:
+            tableName: outbox_event
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: "gen_random_uuid()"
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: "now()"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: portfolio_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: trade_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: payload
+                  type: bytea
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: text
+                  defaultValue: 'PENDING'
+                  constraints:
+                    nullable: false
+              - column:
+                  name: attempts
+                  type: integer
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            indexName: idx_outbox_status_createdat
+            tableName: outbox_event
+            columns:
+              - column:
+                  name: status
+              - column:
+                  name: created_at
+
+        - createTable:
+            tableName: dlq_entry
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: "gen_random_uuid()"
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: failed_at
+                  type: timestamptz
+                  defaultValueComputed: "now()"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: raw_message
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: error_detail
+                  type: text

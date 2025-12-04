@@ -1,0 +1,48 @@
+# .dockerignore for a Spring Boot app
+
+# Build outputs
+target/
+build/
+out/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+
+# Node/npm
+node_modules/
+
+# Logs, temp and OS files
+*.log
+*.tmp
+*.swp
+*.swo
+*.bak
+.DS_Store
+Thumbs.db
+
+# Local env / secrets
+.env
+*.env
+*.local
+
+# Local caches (if accidentally committed)
+.m2/
+.gradle/
+
+# Docker metadata
+.dockerignore
+
+# Keep wrapper scripts/jars if you build inside the image (do not exclude them)
+!mvnw
+!mvnw.cmd
+!gradlew
+!gradlew.bat
+!.mvn/wrapper/maven-wrapper.jar
+!gradle/wrapper/gradle-wrapper.jar

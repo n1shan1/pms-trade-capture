@@ -1,0 +1,76 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: pms-trade-capture
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:pmsdb}
+    username: ${DB_USER:pms}
+    password: ${DB_PASS:pms}
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+
+    liquibase:
+      change-log: classpath:db/changelog/db.changelog-master.yaml
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.confluent.kafka.serializers.protobuf.KafkaProtobufSerializer
+      acks: all
+      enable-idempotence: true
+      max-in-flight-requests-per-connection: 1
+      retries: 2147483647
+      linger-ms: 10
+      batch-size: 32768
+      compression-type: snappy
+
+    properties:
+      schema.registry.url: ${SCHEMA_REGISTRY_URL:http://localhost:8081}
+      auto.register.schemas: ${AUTO_REGISTER_SCHEMAS:true}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+  endpoint:
+    health:
+      show-details: when_authorized
+
+app:
+  rabbit:
+    stream:
+      name: ${RABBIT_STREAM_NAME:trade-events-stream}
+      host: ${RABBIT_HOST:localhost}
+      port: ${RABBIT_STREAM_PORT:5552}
+      consumer-name: ${RABBIT_CONSUMER_NAME:trade-capture}
+
+  ingest:
+    batch:
+      max-size-per-portfolio: ${BATCH_MAX_SIZE_PER_PORTFOLIO:100}
+      flush-interval-ms: ${BATCH_FLUSH_INTERVAL_MS:200}
+
+  kafka:
+    trade-topic: ${TRADE_TOPIC_NAME:raw-trades-proto}
+
+  outbox:
+    poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:500}
+    batch-size: ${OUTBOX_BATCH_SIZE:100}
+
+  
+

@@ -1,0 +1,161 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    environment:
+      POSTGRES_USER: pms
+      POSTGRES_PASSWORD: pms
+      POSTGRES_DB: pmsdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pms -d pmsdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3.11-management
+    container_name: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+      - "5552:5552"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    command: >
+      bash -c "
+        rabbitmq-plugins enable rabbitmq_stream &&
+        rabbitmq-server
+      "
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    hostname: kafka
+    container_name: kafka
+    environment:
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CLUSTER_ID: "dOFfvAcdQZKE60Enfcsefg"
+      CLUSTER_ID: "dOFfvAcdQZKE60Enfcsefg"
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_INTERNAL://0.0.0.0:19092,CONTROLLER://0.0.0.0:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:19092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      # Single-node setup: set default replication factors to 1
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    depends_on:
+      - postgres
+      - rabbitmq
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.5.0
+    container_name: schema-registry
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:19092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+    ports:
+      - "8081:8081"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/subjects || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  pms-simulator-temp:
+    image: niishantdev/pms-simulator-temp:latest
+    container_name: pms-simulator-temp
+    environment:
+      RABBIT_HOST: rabbitmq
+      RABBIT_PORT: 5672
+      RABBIT_USER: guest
+      RABBIT_PASS: guest
+      RABBIT_STREAM_NAME: trade-events-stream
+      RABBIT_STREAM_HOST: rabbitmq
+      RABBIT_STREAM_PORT: 5552
+    ports:
+      - "4000:4000"
+    depends_on:
+      - rabbitmq
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4000/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  trade-capture:
+    image: niishantdev/pms-trade-capture:latest
+    container_name: trade-capture
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: pmsdb
+      DB_USER: pms
+      DB_PASS: pms
+      RABBIT_STREAM_NAME: trade-events-stream
+      RABBIT_HOST: rabbitmq
+      RABBIT_STREAM_PORT: 5552
+      RABBIT_CONSUMER_NAME: trade-capture
+      KAFKA_BOOTSTRAP: kafka:9092
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      AUTO_REGISTER_SCHEMAS: true
+      TRADE_TOPIC_NAME: raw-trades-proto
+      BATCH_MAX_SIZE_PER_PORTFOLIO: 100
+      BATCH_FLUSH_INTERVAL_MS: 200
+      OUTBOX_POLL_INTERVAL_MS: 500
+      OUTBOX_BATCH_SIZE: 100
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  pgdata:
+  rabbitmq_data:
+  kafka_data:
