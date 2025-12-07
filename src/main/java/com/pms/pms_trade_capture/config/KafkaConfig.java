@@ -55,4 +55,21 @@ public class KafkaConfig {
     public KafkaTemplate<String, TradeEventProto> kafkaTemplate() {
         return new KafkaTemplate<>(producerFactory());
     }
+
+    // Lifecycle event producer (JSON format)
+    @Bean
+    public ProducerFactory<String, String> lifecycleProducerFactory() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        props.put(ProducerConfig.ACKS_CONFIG, "all");
+        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+        return new DefaultKafkaProducerFactory<>(props);
+    }
+
+    @Bean
+    public KafkaTemplate<String, String> lifecycleKafkaTemplate() {
+        return new KafkaTemplate<>(lifecycleProducerFactory());
+    }
 }

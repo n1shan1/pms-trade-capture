@@ -38,6 +38,7 @@ public class BatchingIngestService {
     private final SafeStoreRepository safeStoreRepository;
     private final OutboxRepository outboxRepository;
     private final DlqRepository dlqRepository;
+    private final CrossCuttingService crossCuttingService;
 
     @Value("${app.ingest.batch.max-size-per-portfolio}")
     private int maxSizePerPortfolio;
@@ -70,10 +71,12 @@ public class BatchingIngestService {
 
     public BatchingIngestService(SafeStoreRepository safeStoreRepository,
             OutboxRepository outboxRepository,
-            DlqRepository dlqRepository) {
+            DlqRepository dlqRepository,
+            CrossCuttingService crossCuttingService) {
         this.safeStoreRepository = safeStoreRepository;
         this.outboxRepository = outboxRepository;
         this.dlqRepository = dlqRepository;
+        this.crossCuttingService = crossCuttingService;
     }
 
     @PostConstruct
@@ -271,10 +274,23 @@ public class BatchingIngestService {
                 return oe;
             }).collect(Collectors.toList());
 
-            safeStoreRepository.saveAll(safeTrades);
-            outboxRepository.saveAll(outboxEvents);
+            List<SafeStoreTrade> savedTrades = safeStoreRepository.saveAll(safeTrades);
+            List<OutboxEvent> savedOutboxEvents = outboxRepository.saveAll(outboxEvents);
 
-            log.debug("Persisted batch: {} trades, {} outbox events", safeTrades.size(), outboxEvents.size());
+            // Record lifecycle success for each trade
+            for (int i = 0; i < trades.size(); i++) {
+                try {
+                    crossCuttingService.recordIngestionSuccess(
+                        TradeEventMapper.protoToDto(trades.get(i)),
+                        savedTrades.get(i),
+                        savedOutboxEvents.get(i)
+                    );
+                } catch (Exception e) {
+                    log.warn("Failed to send lifecycle success event for trade {}", trades.get(i).getTradeId(), e);
+                }
+            }
+
+            log.debug("Persisted batch: {} trades, {} outbox events", savedTrades.size(), savedOutboxEvents.size());
             return true;
 
         } catch (DataIntegrityViolationException e) {
@@ -308,7 +324,22 @@ public class BatchingIngestService {
                 }
             }).collect(Collectors.toList());
 
-            dlqRepository.saveAll(dlqEntries);
+            List<DlqEntry> savedDlqEntries = dlqRepository.saveAll(dlqEntries);
+
+            // Record lifecycle failure for each trade
+            for (int i = 0; i < messages.size(); i++) {
+                try {
+                    crossCuttingService.recordIngestionFailure(
+                        TradeEventMapper.protoToDto(messages.get(i).getTrade()),
+                        savedDlqEntries.get(i),
+                        new RuntimeException(errorDetail)
+                    );
+                } catch (Exception e) {
+                    log.warn("Failed to send lifecycle failure event for trade {}", 
+                        messages.get(i).getTrade().getTradeId(), e);
+                }
+            }
+
             log.debug("Saved {} messages to DLQ: {}", dlqEntries.size(), errorDetail);
         } catch (Exception e) {
             log.error("Failed to save batch to DLQ", e);

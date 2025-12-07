@@ -28,6 +28,7 @@ services:
       - "5552:5552"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
     command: >
       bash -c "
         rabbitmq-plugins enable rabbitmq_stream &&
@@ -140,6 +141,7 @@ services:
       SCHEMA_REGISTRY_URL: http://schema-registry:8081
       AUTO_REGISTER_SCHEMAS: true
       TRADE_TOPIC_NAME: raw-trades-proto
+      LIFECYCLE_TOPIC_NAME: lifecycle.event
       BATCH_MAX_SIZE_PER_PORTFOLIO: 100
       BATCH_FLUSH_INTERVAL_MS: 200
       OUTBOX_POLL_INTERVAL_MS: 500

@@ -68,6 +68,7 @@ app:
 
   kafka:
     trade-topic: ${TRADE_TOPIC_NAME:raw-trades-proto}
+    lifecycle-topic: ${LIFECYCLE_TOPIC_NAME:lifecycle.event}
 
   outbox:
     poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:500}

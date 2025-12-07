@@ -11,4 +11,12 @@ public class TradeEventDto {
     public double pricePerStock;
     public long quantity;
     public Instant timestamp;
+
+    public UUID getPortfolioId() {
+        return portfolioId;
+    }
+
+    public String getTradeId() {
+        return tradeId != null ? tradeId.toString() : null;
+    }
 }
