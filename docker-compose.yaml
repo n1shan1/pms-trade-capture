@@ -1,20 +1,20 @@
 services:
-  postgres:
-    image: postgres:16
-    container_name: postgres
-    environment:
-      POSTGRES_USER: pms
-      POSTGRES_PASSWORD: pms
-      POSTGRES_DB: pmsdb
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pms -d pmsdb"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+#  postgres:
+#    image: postgres:16
+#    container_name: postgres
+#    environment:
+#      POSTGRES_USER: pms
+#      POSTGRES_PASSWORD: pms
+#      POSTGRES_DB: pmsdb
+#    ports:
+#      - "5432:5432"
+#    volumes:
+#      - pgdata:/var/lib/postgresql/data
+#    healthcheck:
+#      test: ["CMD-SHELL", "pg_isready -U pms -d pmsdb"]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 5
 
   rabbitmq:
     image: rabbitmq:3.11-management
@@ -65,9 +65,6 @@ services:
       - "9092:9092"
     volumes:
       - kafka_data:/var/lib/kafka/data
-    depends_on:
-      - postgres
-      - rabbitmq
     healthcheck:
       test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
       interval: 10s
@@ -108,7 +105,8 @@ services:
     ports:
       - "4000:4000"
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4000/actuator/health"]
       interval: 30s
@@ -117,18 +115,27 @@ services:
       start_period: 60s
 
   trade-capture:
-    image: niishantdev/pms-trade-capture:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pms-trade-capture:latest
     container_name: trade-capture
     environment:
-      DB_HOST: postgres
+      DB_HOST: db-instance-pms.cvk4yqey0ex7.us-east-2.rds.amazonaws.com
       DB_PORT: 5432
-      DB_NAME: pmsdb
-      DB_USER: pms
-      DB_PASS: pms
+      DB_NAME: pms_trade_db
+      DB_USER: postgres
+      DB_PASS: PMS.2025
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
       RABBIT_STREAM_NAME: trade-events-stream
       RABBIT_HOST: rabbitmq
       RABBIT_STREAM_PORT: 5552
       RABBIT_CONSUMER_NAME: trade-capture
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
       KAFKA_BOOTSTRAP: kafka:9092
       SCHEMA_REGISTRY_URL: http://schema-registry:8081
       AUTO_REGISTER_SCHEMAS: true
@@ -140,8 +147,6 @@ services:
     ports:
       - "8082:8082"
     depends_on:
-      postgres:
-        condition: service_healthy
       rabbitmq:
         condition: service_healthy
       kafka:
