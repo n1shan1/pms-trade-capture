@@ -1,0 +1,54 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: pms-trade-capture
+
+  # Database & JPA
+  datasource:
+    url: {DATASOURCE_URL:jdbc:postgresql://${DB_HOST:localhost}:5432/pmsdb}jdbc:postgresql://${DB_HOST:localhost}:5432/pmsdb
+    username: {DATASOURCE_USER:pms}
+    password: {DATASOURCE_PASS:pms}
+    hikari:
+      maximum-pool-size: {DATASOURCE_HIKARI_POOL_SIZE:20} # Important for parallel polling
+  jpa:
+    open-in-view: {JPA_OPEN_IN_VIEW:false}
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: {JDBC_BATCH_SIZE:500} # Critical for Ingestion Performance
+        order_inserts: {ORDER_INSERTS:true}
+        order_updates: {ORDER_UPDATES:true}
+
+  # Kafka (Producer)
+  kafka:
+    bootstrap-servers: {KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.confluent.kafka.serializers.protobuf.KafkaProtobufSerializer
+      acks: all
+      properties:
+        schema.registry.url: {SCHEMA_REGISTRY_URL:http://localhost:8081 }
+
+# App Specific Configs
+app:
+  rabbit:
+    stream:
+      name: {RABBIT_STREAM_NAME:trade-events-stream}
+      host: {RABBIT_STREAM_HOST:localhost}
+      port: {RABBIT_STREAM_PORT:5552}
+      consumer-name: {RABBIT_STREAM_PORT:trade-capture-group}
+      username: {RABBIT_STREAM_USERNAME:guest}
+      password: {RABBIT_STREAM_PASSWORD:guest}
+
+  ingest:
+    batch:
+      max-size: {INGEST_BATCH_MAX_SIZE:500}
+      flush-interval-ms: {INGEST_BATCH_FLUSH_INTERVAL:100}
+
+  outbox:
+    trade-topic: {OUTBOX_TRADE_TOPIC:raw-trades-proto}
+    poll-interval-ms: {OUTBOX_POLL_INTERVAL:100}
+    batch-size: {OUTBOX_BATCH_SIZE:200}
+    concurrency: {OUTBOX_CONCURRENCY:4} # Number of Poller Threads
