@@ -43,7 +43,7 @@ logging:
   level:
     root: INFO
     # Enable detailed logs for your application code
-    com.pms.trade_capture: DEBUG 
+    com.pms.pms_trade_capture: DEBUG 
     # Show SQL queries (optional, good for debugging batch inserts)
     org.hibernate.SQL: INFO
     # Show basic Kafka/RabbitMQ activity without flooding

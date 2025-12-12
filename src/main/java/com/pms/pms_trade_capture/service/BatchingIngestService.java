@@ -1,7 +1,12 @@
 package com.pms.pms_trade_capture.service;
 
 
-import com.pms.pms_trade_capture.domain.PendingStreamMessage;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -9,11 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import com.pms.pms_trade_capture.domain.PendingStreamMessage;
 
 @Service
 public class BatchingIngestService implements SmartLifecycle {
@@ -134,7 +135,7 @@ public class BatchingIngestService implements SmartLifecycle {
 
     private void processBatch(List<PendingStreamMessage> batch, String trigger) {
         try {
-            long highestOffset = batch.getLast().getOffset();
+            long highestOffset = batch.get(batch.size() - 1).getOffset();
             log.debug("Flushing {} trades. Trigger: {}", batch.size(), trigger);
 
             boolean success = persistenceService.persistBatch(batch);

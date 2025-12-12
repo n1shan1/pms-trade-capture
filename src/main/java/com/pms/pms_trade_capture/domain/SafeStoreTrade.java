@@ -1,11 +1,16 @@
 package com.pms.pms_trade_capture.domain;
 
-import jakarta.persistence.*;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
 import java.time.LocalDateTime;
 import java.util.UUID;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "safe_store_trade")
@@ -16,8 +21,8 @@ public class SafeStoreTrade {
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
     private Long id;
 
-    @Column(name = "received_at", nullable = false)
-    private LocalDateTime insertedAt;
+   @Column(name = "received_at", nullable = false)
+    private LocalDateTime receivedAt = LocalDateTime.now();
 
     @Column(name = "portfolio_id", nullable = false)
     private UUID portfolioId;
@@ -52,6 +57,8 @@ public class SafeStoreTrade {
         this.pricePerStock = pricePerStock;
         this.quantity = quantity;
         this.eventTimestamp = eventTimestamp;
+        // This line fixes the NULL error
+        this.receivedAt = LocalDateTime.now();
     }
 
 }

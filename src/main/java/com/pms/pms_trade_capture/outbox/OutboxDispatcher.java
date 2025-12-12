@@ -1,16 +1,20 @@
 package com.pms.pms_trade_capture.outbox;
 
-import com.pms.pms_trade_capture.domain.OutboxEvent;
-import com.pms.pms_trade_capture.repository.OutboxRepository;
-import lombok.SneakyThrows;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-import java.util.concurrent.Executor;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.pms.pms_trade_capture.domain.OutboxEvent;
+import com.pms.pms_trade_capture.repository.OutboxRepository;
+
+import lombok.SneakyThrows;
 
 @Component
 public class OutboxDispatcher implements SmartLifecycle {
@@ -98,7 +102,7 @@ public class OutboxDispatcher implements SmartLifecycle {
                 log.info("Outbox Dispatcher interrupted, stopping loop.");
                 Thread.currentThread().interrupt();
                 running = false;
-            } catch (Exception e) {
+            } catch (InvalidProtocolBufferException | ExecutionException e) {
                 log.error("Error in dispatch loop", e);
                 batchSizer.reset(); // Back off on error
                 sleep(1000);

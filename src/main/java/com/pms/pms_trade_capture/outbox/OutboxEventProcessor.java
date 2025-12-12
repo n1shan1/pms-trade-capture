@@ -32,6 +32,8 @@ public class OutboxEventProcessor {
         // 1. Deserialize
         TradeEventProto proto = TradeEventProto.parseFrom(event.getPayload());
 
+        log.debug("Processing Outbox Event ID: {}, Trade ID: {}", event.getId(), proto.getTradeId());
+
         // 2. Partition Key = Portfolio ID (Guarantees Kafka Ordering)
         String key = event.getPortfolioId().toString();
 
