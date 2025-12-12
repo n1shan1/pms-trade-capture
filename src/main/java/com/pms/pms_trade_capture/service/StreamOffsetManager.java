@@ -13,7 +13,7 @@ public class StreamOffsetManager {
 
     private final AtomicReference<Consumer> consumerRef = new AtomicReference<>();
 
-    public void setConsumer(Consumer consumer) {
+    public void setStreamConsumer(Consumer consumer) {
         this.consumerRef.set(consumer);
     }
 

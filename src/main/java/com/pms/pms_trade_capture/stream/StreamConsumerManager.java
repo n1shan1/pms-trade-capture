@@ -1,7 +1,7 @@
 package com.pms.pms_trade_capture.stream;
 
 import com.pms.pms_trade_capture.config.RabbitStreamConfig;
-import com.pms.pms_trade_capture.service.BatchingIngestService;
+import com.pms.pms_trade_capture.service.StreamOffsetManager;
 import com.rabbitmq.stream.Consumer;
 import com.rabbitmq.stream.Environment;
 import com.rabbitmq.stream.OffsetSpecification;
@@ -17,20 +17,19 @@ public class StreamConsumerManager implements SmartLifecycle {
     private final Environment environment;
     private final RabbitStreamConfig rabbitConfig;
     private final TradeStreamHandler tradeStreamHandler;
-    private final BatchingIngestService batchingIngestService;
-
-    private volatile boolean running = false;
+    private final StreamOffsetManager offsetManager; // <--- The correct dependency
 
     private volatile Consumer consumer;
+    private volatile boolean running = false;
 
     public StreamConsumerManager(Environment environment,
                                  RabbitStreamConfig rabbitConfig,
                                  TradeStreamHandler tradeStreamHandler,
-                                 BatchingIngestService batchingIngestService) {
+                                 StreamOffsetManager offsetManager) {
         this.environment = environment;
         this.rabbitConfig = rabbitConfig;
         this.tradeStreamHandler = tradeStreamHandler;
-        this.batchingIngestService = batchingIngestService;
+        this.offsetManager = offsetManager;
     }
 
     @Override
@@ -45,7 +44,7 @@ public class StreamConsumerManager implements SmartLifecycle {
                     .autoTrackingStrategy()
                     .builder().build();
 
-            batchingIngestService.setStreamConsumer(consumer);
+            offsetManager.setStreamConsumer(consumer);
 
             this.running = true;
 

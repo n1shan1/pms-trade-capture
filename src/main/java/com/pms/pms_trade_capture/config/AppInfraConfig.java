@@ -17,9 +17,11 @@ public class AppInfraConfig {
     @Bean("outboxExecutor")
     public Executor outboxExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(4);
-        executor.setMaxPoolSize(8);
-        executor.setQueueCapacity(500);
+        // Core=1 ensures strict ordering (Single Threaded Consumer)
+        // If you scale pods, DB "SKIP LOCKED" handles concurrency.
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(0); // Synchronous hand-off preferred for polling loops
         executor.setThreadNamePrefix("outbox-worker-");
         executor.initialize();
         return executor;

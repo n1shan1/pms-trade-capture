@@ -52,4 +52,8 @@ app:
     trade-topic: {OUTBOX_TRADE_TOPIC:raw-trades-proto}
     poll-interval-ms: {OUTBOX_POLL_INTERVAL:100}
     batch-size: {OUTBOX_BATCH_SIZE:200}
-    concurrency: {OUTBOX_CONCURRENCY:4} # Number of Poller Threads
+    concurrency: {OUTBOX_CONCURRENCY:4}
+    target-latency-ms: 200
+    min-batch: 10
+    max-batch: 2000
+

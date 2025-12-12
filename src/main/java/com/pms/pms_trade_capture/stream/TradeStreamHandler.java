@@ -2,6 +2,7 @@ package com.pms.pms_trade_capture.stream;
 
 
 import com.google.protobuf.InvalidProtocolBufferException;
+import com.pms.pms_trade_capture.domain.PendingStreamMessage;
 import com.pms.pms_trade_capture.service.BatchingIngestService;
 import com.pms.trade_capture.proto.TradeEventProto;
 import com.rabbitmq.stream.MessageHandler;
@@ -37,7 +38,7 @@ public class TradeStreamHandler implements MessageHandler {
             }
 
             // 3. Route Valid Message
-//            ingestService.addMessage(new PendingStreamMessage(trade, body, offset));
+            ingestService.addMessage(new PendingStreamMessage(trade, body, offset));
 
         } catch (InvalidProtocolBufferException e) {
             // 4. Route Malformed Message (Poison Pill)
@@ -55,7 +56,7 @@ public class TradeStreamHandler implements MessageHandler {
         // We wrap it as an Error message.
         // The BatchingIngestService will persist it to DLQ and THEN commit the offset.
         // This ensures the stream keeps moving even if messages are bad.
-//        ingestService.addMessage(new PendingStreamMessage(body, offset, reason));
+        ingestService.addMessage(new PendingStreamMessage(body, offset, reason));
     }
 
 }
