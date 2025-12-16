@@ -20,7 +20,7 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 
 # Copy JAR from builder
-COPY --from=builder /app/target/trade-capture-*.jar app.jar
+COPY --from=builder /app/target/pms-trade-capture-*.jar app.jar
 
 # Configuration for JVM inside container
 ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"

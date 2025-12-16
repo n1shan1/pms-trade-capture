@@ -20,7 +20,7 @@ public class OutboxEventProcessor {
     private final OutboxRepository repository;
     private final KafkaTemplate<String, TradeEventProto> kafkaTemplate;
 
-   @Value("${app.outbox.trade-topic}")
+    @Value("${app.outbox.trade-topic}")
     private String tradeTopic;
 
     public OutboxEventProcessor(OutboxRepository repository, KafkaTemplate<String, TradeEventProto> kafkaTemplate) {
@@ -28,7 +28,8 @@ public class OutboxEventProcessor {
         this.kafkaTemplate = kafkaTemplate;
     }
 
-    public void process(OutboxEvent event) throws ExecutionException, InterruptedException, InvalidProtocolBufferException {
+    public void process(OutboxEvent event)
+            throws ExecutionException, InterruptedException, InvalidProtocolBufferException {
         // 1. Deserialize
         TradeEventProto proto = TradeEventProto.parseFrom(event.getPayload());
 
@@ -38,9 +39,12 @@ public class OutboxEventProcessor {
         String key = event.getPortfolioId().toString();
 
         // 3. Sync Send (Blocking)
-        // We must wait for Kafka Ack before updating the DB to ensure At-Least-Once delivery.
+        // We must wait for Kafka Ack before updating the DB to ensure At-Least-Once
+        // delivery.
         kafkaTemplate.send(tradeTopic, key, proto).get();
+        log.debug("Successfully sent to Kafka. Topic: {}", tradeTopic);
 
         // 4. DB Ack
         repository.markSent(event.getId());
-    }}
+    }
+}

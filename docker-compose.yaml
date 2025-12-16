@@ -97,17 +97,68 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+
+  # 5. Trade Capture Application
+  trade-capture:
+    build: .
+    container_name: trade-capture-app
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/pmsdb
+      SPRING_DATASOURCE_USERNAME: pms
+      SPRING_DATASOURCE_PASSWORD: pms
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+      RABBITMQ_STREAM_HOST: rabbitmq
+      RABBITMQ_STREAM_PORT: 5552
+      RABBITMQ_STREAM_NAME: trade-stream
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      SPRING_KAFKA_PRODUCER_KEY_SERIALIZER: org.apache.kafka.common.serialization.StringSerializer
+      SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER: io.confluent.kafka.serializers.protobuf.KafkaProtobufSerializer
+      SPRING_KAFKA_PRODUCER_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      SPRING_KAFKA_PRODUCER_PROPERTIES_AUTO_REGISTER_SCHEMAS: true
+      BATCH_SIZE: 500
+      BATCH_TIMEOUT_MS: 100
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8082/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
   
-  pms-simulation:
+# 6. PMS Simulation
+  simulation:
     build: ../pms-simulation
     container_name: pms-simulation
     depends_on:
       rabbitmq:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     environment:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_STREAM_PORT: 5552
       RABBITMQ_STREAM_NAME: trade-stream
+      # Use PostgreSQL database
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/pmsdb
+      SPRING_DATASOURCE_USERNAME: pms
+      SPRING_DATASOURCE_PASSWORD: pms
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
     ports:
       - "4000:4000"
     healthcheck:
@@ -116,6 +167,47 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+  redis:
+    image: "redislabs/redismod"
+    hostname: redis
+    container_name: redis-server
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./data:/data
+    entrypoint: >
+      redis-server
+        --loadmodule /usr/lib/redis/modules/redisai.so
+          ONNX redisai_onnxruntime/redisai_onnxruntime.so
+          TF redisai_tensorflow/redisai_tensorflow.so
+          TFLITE redisai_tflite/redisai_tflite.so
+          TORCH redisai_torch/redisai_torch.so   
+        --loadmodule /usr/lib/redis/modules/redisearch.so
+        --loadmodule /usr/lib/redis/modules/redisgraph.so
+        --loadmodule /usr/lib/redis/modules/redistimeseries.so
+        --loadmodule /usr/lib/redis/modules/rejson.so
+        --loadmodule /usr/lib/redis/modules/redisbloom.so
+        --loadmodule /usr/lib/redis/modules/redisgears.so
+        --appendonly yes
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+  control-center:
+    image: confluentinc/cp-enterprise-control-center:7.6.0
+    hostname: control-center
+    container_name: control-center
+    depends_on:
+      - kafka
+      - schema-registry
+    ports:
+      - "9021:9021"
+    environment:
+      CONTROL_CENTER_BOOTSTRAP_SERVERS: "PLAINTEXT://kafka:29092"
+      CONTROL_CENTER_SCHEMA_REGISTRY_URLS: "http://schema-registry:8081"
+      CONTROL_CENTER_CONNECT_CLUSTER: ""
+      CONTROL_CENTER_REPLICATION_FACTOR: 1
+      PORT: 9021
   
 volumes:
   pgdata:

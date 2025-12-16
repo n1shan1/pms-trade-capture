@@ -8,7 +8,6 @@ spring:
   # Database & JPA
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:5432/${DB_NAME:pmsdb}
-    # FIX: Added '$' prefix to variable references
     username: ${DATASOURCE_USER:pms}
     password: ${DATASOURCE_PASS:pms}
     hikari:
@@ -27,6 +26,7 @@ spring:
         
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
+    clear-checksums: true
   
   # Kafka (Producer)
   kafka:
@@ -71,6 +71,7 @@ app:
 
   outbox:
     trade-topic: ${OUTBOX_TRADE_TOPIC:raw-trades-proto}
+    max-retries: ${OUTBOX_MAX_RETRIES:3}
     # Dynamic Batching Settings (AdaptiveBatchSizer)
     target-latency-ms: ${OUTBOX_TARGET_LATENCY:200}
     min-batch: ${OUTBOX_MIN_BATCH:10}

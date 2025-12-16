@@ -1,6 +1,5 @@
 package com.pms.pms_trade_capture.service;
 
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
@@ -39,7 +38,7 @@ public class BatchingIngestService implements SmartLifecycle {
     private volatile boolean running = false;
 
     public BatchingIngestService(BatchPersistenceService persistenceService,
-                                 StreamOffsetManager offsetManager, @Qualifier("ingestScheduler") ScheduledExecutorService scheduler) {
+            StreamOffsetManager offsetManager, @Qualifier("ingestScheduler") ScheduledExecutorService scheduler) {
         this.persistenceService = persistenceService;
         this.offsetManager = offsetManager;
         this.scheduler = scheduler;
@@ -54,8 +53,7 @@ public class BatchingIngestService implements SmartLifecycle {
                 this::flushOnTime,
                 flushIntervalMs,
                 flushIntervalMs / 2,
-                TimeUnit.MILLISECONDS
-        );
+                TimeUnit.MILLISECONDS);
 
         this.running = true;
         log.info("Batching Ingest Task scheduled.");
@@ -89,7 +87,8 @@ public class BatchingIngestService implements SmartLifecycle {
 
     @Override
     public int getPhase() {
-        // Stop AFTER Consumer (MAX), but BEFORE Spring destroys the 'ingestScheduler' bean (0)
+        // Stop AFTER Consumer (MAX), but BEFORE Spring destroys the 'ingestScheduler'
+        // bean (0)
         return Integer.MAX_VALUE - 1000;
     }
 
@@ -103,7 +102,8 @@ public class BatchingIngestService implements SmartLifecycle {
     }
 
     private void flushOnTime() {
-        if (!running) return;
+        if (!running)
+            return;
         synchronized (batchLock) {
             if (!currentBatch.isEmpty()) {
                 flushBatch("Time-Threshold");
@@ -121,7 +121,8 @@ public class BatchingIngestService implements SmartLifecycle {
 
         // Critical Section: Fast Reference Swap
         synchronized (batchLock) {
-            if (currentBatch.isEmpty()) return;
+            if (currentBatch.isEmpty())
+                return;
 
             // Snapshot the buffer
             batchToProcess = new ArrayList<>(currentBatch);
@@ -129,7 +130,8 @@ public class BatchingIngestService implements SmartLifecycle {
             currentBatch.clear();
         }
 
-        // Long-running DB operation happens HERE (Concurrent with new messages arriving)
+        // Long-running DB operation happens HERE (Concurrent with new messages
+        // arriving)
         processBatch(batchToProcess, trigger);
     }
 
@@ -148,7 +150,8 @@ public class BatchingIngestService implements SmartLifecycle {
             }
         } catch (Exception e) {
             log.error("Unexpected error during batch processing", e);
+            // In case of unexpected errors, we do not commit the offset
+            // This will lead to reprocessing of the batch, which is handled idempotently
         }
     }
 }
-

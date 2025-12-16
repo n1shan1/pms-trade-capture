@@ -13,7 +13,7 @@ public class TradeEventMapper {
     /**
      * Convert Protobuf Message -> Audit Log Entity
      */
-    public static SafeStoreTrade protoToSafeStoreTrade(TradeEventProto proto) {
+    public static SafeStoreTrade protoToSafeStoreTrade(TradeEventProto proto, byte[] rawMessage) {
         return new SafeStoreTrade(
                 UUID.fromString(proto.getPortfolioId()),
                 UUID.fromString(proto.getTradeId()),
@@ -21,7 +21,8 @@ public class TradeEventMapper {
                 proto.getSide(),
                 proto.getPricePerStock(),
                 proto.getQuantity(),
-                protoTimestampToLocalDateTime(proto.getTimestamp())
+                protoTimestampToLocalDateTime(proto.getTimestamp()),
+                rawMessage
         );
     }
 
@@ -76,6 +77,6 @@ public class TradeEventMapper {
         if (!message.isValid()) {
             throw new IllegalArgumentException("Cannot map invalid pending message to trade entity");
         }
-        return protoToSafeStoreTrade(message.getTrade());
+        return protoToSafeStoreTrade(message.getTrade(), message.getRawMessageBytes());
     }
 }

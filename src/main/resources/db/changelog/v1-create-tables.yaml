@@ -62,6 +62,15 @@ databaseChangeLog:
                   constraints:
                     nullable: false
               - column:
+                  name: raw_payload
+                  type: bytea
+              - column:
+                  name: is_valid
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
                   name: event_timestamp
                   type: timestamp
                   constraints:

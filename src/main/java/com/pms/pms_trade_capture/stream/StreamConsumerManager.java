@@ -1,14 +1,15 @@
 package com.pms.pms_trade_capture.stream;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.SmartLifecycle;
+import org.springframework.stereotype.Component;
+
 import com.pms.pms_trade_capture.config.RabbitStreamConfig;
 import com.pms.pms_trade_capture.service.StreamOffsetManager;
 import com.rabbitmq.stream.Consumer;
 import com.rabbitmq.stream.Environment;
 import com.rabbitmq.stream.OffsetSpecification;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.context.SmartLifecycle;
-import org.springframework.stereotype.Component;
 
 @Component
 public class StreamConsumerManager implements SmartLifecycle {
@@ -17,7 +18,7 @@ public class StreamConsumerManager implements SmartLifecycle {
     private final Environment environment;
     private final RabbitStreamConfig rabbitConfig;
     private final TradeStreamHandler tradeStreamHandler;
-    private final StreamOffsetManager offsetManager; // <--- The correct dependency
+    private final StreamOffsetManager offsetManager;
 
     private volatile Consumer consumer;
     private volatile boolean running = false;

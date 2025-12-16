@@ -1,8 +1,9 @@
 package com.pms.pms_trade_capture.domain;
+
 import com.pms.trade_capture.proto.TradeEventProto;
+
 import lombok.Getter;
 import lombok.Setter;
-import org.springframework.stereotype.Service;
 
 /**
  * Represents a pending message from RabbitMQ Stream that has been received
@@ -10,7 +11,8 @@ import org.springframework.stereotype.Service;
  * * This class pairs a trade event with its stream offset to enable proper
  * crash recovery semantics:
  * - Offset is committed ONLY after successful DB persistence
- * - If crash occurs before commit, stream will replay from last committed offset
+ * - If crash occurs before commit, stream will replay from last committed
+ * offset
  * - This guarantees at-least-once delivery without data loss
  */
 @Getter
