@@ -23,6 +23,7 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
       interval: 10s
+      
       timeout: 5s
       retries: 5
       start_period: 30s
@@ -111,12 +112,24 @@ services:
       SPRING_DATASOURCE_PASSWORD: pms
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
+      DB_HOST: postgres
+      DB_NAME: pmsdb
+      DATASOURCE_USER: pms
+      DATASOURCE_PASS: pms
+      DATASOURCE_HIKARI_POOL_SIZE: 20
+      JPA_OPEN_IN_VIEW: false
+      JDBC_BATCH_SIZE: 500
       SPRING_RABBITMQ_USERNAME: guest
       SPRING_RABBITMQ_PASSWORD: guest
-      RABBITMQ_STREAM_HOST: rabbitmq
-      RABBITMQ_STREAM_PORT: 5552
-      RABBITMQ_STREAM_NAME: trade-stream
+      APP_RABBIT_STREAM_HOST: rabbitmq
+      APP_RABBIT_STREAM_PORT: 5552
+      APP_RABBIT_STREAM_NAME: trade-stream
+      APP_RABBIT_STREAM_CONSUMER_NAME: trade-capture-group
+      APP_RABBIT_STREAM_USERNAME: guest
+      APP_RABBIT_STREAM_PASSWORD: guest
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
       SPRING_KAFKA_PRODUCER_KEY_SERIALIZER: org.apache.kafka.common.serialization.StringSerializer
       SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER: io.confluent.kafka.serializers.protobuf.KafkaProtobufSerializer
       SPRING_KAFKA_PRODUCER_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
@@ -208,6 +221,44 @@ services:
       CONTROL_CENTER_CONNECT_CLUSTER: ""
       CONTROL_CENTER_REPLICATION_FACTOR: 1
       PORT: 9021
+
+      
+  # validation-service:
+  #   build:
+  #     context: ../pms-validation
+  #     dockerfile: docker/Dockerfile
+  #   container_name: validation-service
+  #   environment:
+  #     SPRING_APPLICATION_NAME: validation
+  #     DB_HOST: postgres
+  #     DB_PORT: "5432"
+  #     DB_NAME: pmsdb
+  #     DATASOURCE_USER: pms
+  #     DATASOURCE_PASS: pms
+  #     DATASOURCE_DRIVER: org.postgresql.Driver
+  #     HIBERNATE_DDL_AUTO: update
+  #     HIBERNATE_SHOW_SQL: "false"
+  #     HIBERNATE_FORMAT_SQL: "true"
+  #     HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+  #     REDIS_HOST: redis
+  #     REDIS_PORT: "6379"
+  #     REDIS_TIMEOUT: 2s
+  #     CACHE_TYPE: redis
+  #     KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+  #     KAFKA_CONSUMER_GROUP_ID: validation-consumer-group
+  #     SCHEMA_REGISTRY_URL: http://schema-registry:8081
+  #     SERVER_PORT: "8080"
+  #     INCOMING_TRADES_TOPIC: raw-trades-topic
+  #     OUTGOING_VALID_TRADES_TOPIC: valid-trades-topic
+  #     OUTGOING_INVALID_TRADES_TOPIC: invalid-trades-topic
+  #     LOGGING_LEVEL: DEBUG
+  #   ports:
+  #     - "8080:8080"
+  #   depends_on:
+  #     - postgres
+  #     - kafka
+  #     - schema-registry
+  #     - redis
   
 volumes:
   pgdata:

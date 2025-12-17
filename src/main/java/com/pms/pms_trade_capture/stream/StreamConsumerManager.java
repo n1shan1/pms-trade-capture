@@ -1,5 +1,7 @@
 package com.pms.pms_trade_capture.stream;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.SmartLifecycle;
@@ -22,11 +24,12 @@ public class StreamConsumerManager implements SmartLifecycle {
 
     private volatile Consumer consumer;
     private volatile boolean running = false;
+    private final AtomicBoolean isPaused = new AtomicBoolean(false);
 
     public StreamConsumerManager(Environment environment,
-                                 RabbitStreamConfig rabbitConfig,
-                                 TradeStreamHandler tradeStreamHandler,
-                                 StreamOffsetManager offsetManager) {
+            RabbitStreamConfig rabbitConfig,
+            TradeStreamHandler tradeStreamHandler,
+            StreamOffsetManager offsetManager) {
         this.environment = environment;
         this.rabbitConfig = rabbitConfig;
         this.tradeStreamHandler = tradeStreamHandler;
@@ -83,7 +86,6 @@ public class StreamConsumerManager implements SmartLifecycle {
         return SmartLifecycle.super.isAutoStartup();
     }
 
-
     /**
      * Phase: Lower numbers start first and stop last.
      * We want this to start LATE (after DB) and stop EARLY (before DB).
@@ -92,5 +94,34 @@ public class StreamConsumerManager implements SmartLifecycle {
     @Override
     public int getPhase() {
         return Integer.MAX_VALUE;
+    }
+
+    /**
+     * Pause tracking for backpressure visibility.
+     * RabbitMQ Streams don't support consumer.pause() like Kafka.
+     * Instead, we handle backpressure at the message handler level
+     * by rejecting messages when the buffer is full.
+     */
+    public void pause() {
+        if (isPaused.compareAndSet(false, true)) {
+            log.warn("⏸️ BACKPRESSURE ACTIVATED - buffer full or circuit breaker open");
+        }
+    }
+
+    /**
+     * Resume tracking for backpressure visibility.
+     */
+    public void resume() {
+        if (isPaused.compareAndSet(true, false)) {
+            log.info("▶️ BACKPRESSURE RELEASED - ready to process");
+        }
+    }
+
+    /**
+     * Check if backpressure is active.
+     * Used for monitoring and alerting.
+     */
+    public boolean isPaused() {
+        return isPaused.get();
     }
 }

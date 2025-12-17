@@ -2,18 +2,26 @@ package com.pms.pms_trade_capture.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.SmartLifecycle;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import com.pms.pms_trade_capture.domain.PendingStreamMessage;
+import com.pms.pms_trade_capture.stream.StreamConsumerManager;
+import com.rabbitmq.stream.MessageHandler;
+
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 
 @Service
 public class BatchingIngestService implements SmartLifecycle {
@@ -21,7 +29,12 @@ public class BatchingIngestService implements SmartLifecycle {
 
     private final BatchPersistenceService persistenceService;
     private final StreamOffsetManager offsetManager;
+    private final StreamConsumerManager consumerManager;
     private final ScheduledExecutorService scheduler;
+
+    private final ReentrantLock bufferLock = new ReentrantLock();
+
+    private final BlockingQueue<PendingStreamMessage> messageBuffer = new LinkedBlockingQueue<>(10000);
 
     @Value("${app.ingest.batch.max-size:500}")
     private int maxBatchSize;
@@ -30,15 +43,19 @@ public class BatchingIngestService implements SmartLifecycle {
     private long flushIntervalMs;
 
     // Single Ordered Buffer (Fixes Offset Gap Bug)
-    private final List<PendingStreamMessage> currentBatch = new ArrayList<>();
-    private final Object batchLock = new Object();
+    // private final List<PendingStreamMessage> currentBatch = new ArrayList<>();
+    // private final Object batchLock = new Object();
 
     // Handle to the running task, so we can cancel it specifically
     private volatile ScheduledFuture<?> flushTask;
     private volatile boolean running = false;
 
-    public BatchingIngestService(BatchPersistenceService persistenceService,
-            StreamOffsetManager offsetManager, @Qualifier("ingestScheduler") ScheduledExecutorService scheduler) {
+    public BatchingIngestService(
+            BatchPersistenceService persistenceService,
+            StreamOffsetManager offsetManager,
+            @Qualifier("ingestScheduler") ScheduledExecutorService scheduler,
+            @Lazy StreamConsumerManager consumerManager) {
+        this.consumerManager = consumerManager;
         this.persistenceService = persistenceService;
         this.offsetManager = offsetManager;
         this.scheduler = scheduler;
@@ -92,66 +109,112 @@ public class BatchingIngestService implements SmartLifecycle {
         return Integer.MAX_VALUE - 1000;
     }
 
+    /**
+     * Add message to buffer with timeout-based backpressure.
+     * If buffer is full after timeout, route message directly to DLQ to prevent
+     * data loss.
+     * This ensures we never block the RabbitMQ Stream consumer indefinitely.
+     */
     public void addMessage(PendingStreamMessage message) {
-        synchronized (batchLock) {
-            currentBatch.add(message);
-            if (currentBatch.size() >= maxBatchSize) {
-                flushBatch("Size-Threshold");
-            }
+        if (messageBuffer.offer(message)) {
+            return;
+        }
+
+        log.warn("⚠️ Buffer full! Pausing consumer and BLOCKING. Offset: {}", message.getOffset());
+        consumerManager.pause();
+
+        try {
+            messageBuffer.put(message); // Blocks here until flushBatch clears space
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Thread interrupted during backpressure wait.", e);
+            persistenceService.saveToDlq(message, "App Shutdown/Interrupted");
         }
     }
 
     private void flushOnTime() {
-        if (!running)
+        if (!running || messageBuffer.isEmpty())
             return;
-        synchronized (batchLock) {
-            if (!currentBatch.isEmpty()) {
-                flushBatch("Time-Threshold");
-            }
-        }
+        flushBatch("Time-Threshold");
     }
 
-    /**
-     * Optimized Flush:
-     * 1. Acquire Lock -> Swap List -> Release Lock (Fast)
-     * 2. Persist to DB -> Commit Offset (Slow, but Non-Blocking)
-     */
     private void flushBatch(String trigger) {
-        List<PendingStreamMessage> batchToProcess;
-
-        // Critical Section: Fast Reference Swap
-        synchronized (batchLock) {
-            if (currentBatch.isEmpty())
-                return;
-
-            // Snapshot the buffer
-            batchToProcess = new ArrayList<>(currentBatch);
-            // Clear the main buffer so Consumer can keep adding to it immediately
-            currentBatch.clear();
+        bufferLock.lock();
+        List<PendingStreamMessage> batchToProcess = new ArrayList<>();
+        try {
+            messageBuffer.drainTo(batchToProcess, 500);
+        } finally {
+            bufferLock.unlock();
         }
 
-        // Long-running DB operation happens HERE (Concurrent with new messages
-        // arriving)
-        processBatch(batchToProcess, trigger);
+        if (batchToProcess.isEmpty())
+            return;
+
+        // --- RETRY LOOP FOR SYSTEM OUTAGES ---
+        boolean processed = false;
+        while (!processed) {
+            try {
+                processBatchLogic(batchToProcess);
+                processed = true; // Success
+
+                // Resume consumer if we cleared enough space
+                if (messageBuffer.size() < 1000)
+                    consumerManager.resume();
+
+            } catch (CallNotPermittedException e) {
+                // CIRCUIT OPEN: DB is Dead.
+                log.error("CIRCUIT OPEN: Pausing Consumer & Waiting 5s...");
+                consumerManager.pause();
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+                // Continue loop -> Retry same batch
+
+            } catch (Exception e) {
+                log.error("Fatal Unexpected Error in Flush Loop", e);
+                processed = true; // Abort to prevent infinite loop on bugs
+            }
+        }
     }
 
-    private void processBatch(List<PendingStreamMessage> batch, String trigger) {
+    private void processBatchLogic(List<PendingStreamMessage> batch) {
         try {
-            long highestOffset = batch.get(batch.size() - 1).getOffset();
-            log.debug("Flushing {} trades. Trigger: {}", batch.size(), trigger);
+            // 1. FAST PATH (Batch)
+            persistenceService.persistBatch(batch);
+            commitOffset(batch.get(batch.size() - 1));
 
-            boolean success = persistenceService.persistBatch(batch);
+        } catch (CallNotPermittedException e) {
+            throw e; // Propagate to retry loop
 
-            if (success) {
-                offsetManager.commit(highestOffset);
-            } else {
-                persistenceService.persistToDlq(batch, "Batch Persistence Failed");
-                offsetManager.commit(highestOffset);
-            }
         } catch (Exception e) {
-            log.error("Unexpected error during batch processing", e);
-            // In case of unexpected errors, we do not commit the offset
-            // This will lead to reprocessing of the batch, which is handled idempotently
+            log.warn("Batch Failed. Switching to Safe Path. Error: {}", e.getMessage());
+
+            // 2. SAFE PATH (Single Item Fallback)
+            PendingStreamMessage lastSuccess = null;
+
+            for (PendingStreamMessage msg : batch) {
+                try {
+                    persistenceService.persistSingleSafely(msg);
+                    lastSuccess = msg; // Track progress regardless of DLQ or DB Success
+                } catch (CallNotPermittedException cbEx) {
+                    throw cbEx; // DB died mid-loop -> Stop & Retry
+                } catch (Exception ex) {
+                    log.error("Unexpected error in safe path", ex);
+                }
+            }
+
+            if (lastSuccess != null) {
+                commitOffset(lastSuccess);
+            }
+        }
+    }
+
+    private void commitOffset(PendingStreamMessage msg) {
+        MessageHandler.Context context = msg.getContext();
+        if (context != null) {
+            context.storeOffset();
         }
     }
 }

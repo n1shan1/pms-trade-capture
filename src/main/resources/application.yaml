@@ -37,6 +37,9 @@ spring:
       acks: all
     properties:
       schema.registry.url: ${SCHEMA_REGISTRY_URL:http://localhost:8081}
+  dokcer:
+    compose:
+      enabled: false
 
 
 logging:
@@ -70,7 +73,7 @@ app:
       flush-interval-ms: ${INGEST_BATCH_FLUSH_INTERVAL:100}
 
   outbox:
-    trade-topic: ${OUTBOX_TRADE_TOPIC:raw-trades-proto}
+    trade-topic: ${OUTBOX_TRADE_TOPIC:raw-trades-topic}
     max-retries: ${OUTBOX_MAX_RETRIES:3}
     # Dynamic Batching Settings (AdaptiveBatchSizer)
     target-latency-ms: ${OUTBOX_TARGET_LATENCY:200}
@@ -81,3 +84,18 @@ app:
     # Initial batch size
     batch-size: ${OUTBOX_BATCH_SIZE:200}
     concurrency: ${OUTBOX_CONCURRENCY:4}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      pmsDb:
+        registerHealthIndicator: true
+        slidingWindowSize: 10        # Check last 10 calls
+        failureRateThreshold: 50     # If 5/10 fail, OPEN the circuit
+        waitDurationInOpenState: 10s # Wait 10s before trying again (Half-Open)
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        # TRICK: Don't trip the breaker for bad data (Duplicate Key, etc.)
+        ignoreExceptions:
+          - org.springframework.dao.DataIntegrityViolationException
+          - java.lang.IllegalArgumentException
