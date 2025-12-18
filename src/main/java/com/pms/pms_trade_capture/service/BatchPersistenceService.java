@@ -105,6 +105,7 @@ public class BatchPersistenceService {
                     proto.toByteArray()));
         } else {
             safeTrades.add(SafeStoreTrade.createInvalid(msg.getRawMessageBytes()));
+            saveToDlq(msg, "Invalid Trade Message detected at offset " + msg.getOffset());
         }
     }
 
