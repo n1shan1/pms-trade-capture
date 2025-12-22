@@ -88,13 +88,16 @@ public class CrossCuttingServiceImpl implements CrossCuttingService {
             String json = objectMapper.writeValueAsString(payload);
             String key = tradeEvent.getTradeId();
 
-            log.info("Sending lifecycle event to topic '{}': key={}, status={}, stage={}",
-                    lifecycleTopic, key, status, stage);
-
-            lifecycleKafkaTemplate.send(lifecycleTopic, key, json).get();
-
-            log.info("Successfully sent lifecycle event to topic '{}': key={}, status={}, stage={}",
-                    lifecycleTopic, key, status, stage);
+            lifecycleKafkaTemplate.send(lifecycleTopic, key, json)
+                    .whenComplete((result, ex) -> {
+                        if (ex == null) {
+                            log.debug("Lifecycle event sent: key={}, status={}, stage={}, offset={}",
+                                    key, status, stage, result.getRecordMetadata().offset());
+                        } else {
+                            log.warn("Failed to send lifecycle event: key={}, status={}, stage={} - {}",
+                                    key, status, stage, ex.getMessage());
+                        }
+                    });
 
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize lifecycle event for trade {}", tradeEvent.getTradeId(), e);
