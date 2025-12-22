@@ -1,7 +1,138 @@
 <configuration>
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
     <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+    
+    <!-- Property for log directory -->
+    <property name="LOG_DIR" value="logs"/>
+    <property name="LOG_FILE_NAME" value="pms-trade-capture"/>
+    
+    <!-- 
+        FILE APPENDER - All logs (INFO and above)
+        - Rolling policy: Daily rotation + size-based split
+        - Retention: 30 days
+        - Max total size: 10 GB
+        - Max file size: 100 MB per file
+    -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/${LOG_FILE_NAME}.log</file>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- Daily rollover with date pattern -->
+            <fileNamePattern>${LOG_DIR}/archive/${LOG_FILE_NAME}-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            
+            <!-- Each file max 100MB -->
+            <maxFileSize>100MB</maxFileSize>
+            
+            <!-- Keep 30 days of history -->
+            <maxHistory>30</maxHistory>
+            
+            <!-- Total size cap: 10GB -->
+            <totalSizeCap>10GB</totalSizeCap>
+            
+            <!-- Clean up on startup if needed -->
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+    </appender>
+    
+    <!-- 
+        ERROR FILE APPENDER - Error logs only
+        - Separate file for easy error monitoring
+        - Retention: 60 days (errors kept longer)
+        - Max total size: 5 GB
+    -->
+    <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/${LOG_FILE_NAME}-error.log</file>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>ERROR</level>
+        </filter>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n%ex{full}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/archive/${LOG_FILE_NAME}-error-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>50MB</maxFileSize>
+            <maxHistory>60</maxHistory>
+            <totalSizeCap>5GB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+    </appender>
+    
+    <!-- 
+        OUTBOX APPENDER - Dedicated log for outbox processing
+        - Helps monitor trade ordering and Kafka publishing
+        - Retention: 14 days
+    -->
+    <appender name="OUTBOX_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/${LOG_FILE_NAME}-outbox.log</file>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/archive/${LOG_FILE_NAME}-outbox-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <maxHistory>14</maxHistory>
+            <totalSizeCap>3GB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+    </appender>
+    
+    <!-- 
+        INGESTION APPENDER - RabbitMQ stream ingestion logs
+        - Monitor batch processing and DLQ routing
+        - Retention: 14 days
+    -->
+    <appender name="INGESTION_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/${LOG_FILE_NAME}-ingestion.log</file>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/archive/${LOG_FILE_NAME}-ingestion-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <maxHistory>14</maxHistory>
+            <totalSizeCap>3GB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+    </appender>
+    
+    <!-- Logger configuration for outbox package -->
+    <logger name="com.pms.pms_trade_capture.outbox" level="INFO" additivity="true">
+        <appender-ref ref="OUTBOX_FILE"/>
+    </logger>
+    
+    <!-- Logger configuration for ingestion/stream packages -->
+    <logger name="com.pms.pms_trade_capture.service.BatchingIngestService" level="INFO" additivity="true">
+        <appender-ref ref="INGESTION_FILE"/>
+    </logger>
+    <logger name="com.pms.pms_trade_capture.service.BatchPersistenceService" level="INFO" additivity="true">
+        <appender-ref ref="INGESTION_FILE"/>
+    </logger>
+    <logger name="com.pms.pms_trade_capture.stream" level="INFO" additivity="true">
+        <appender-ref ref="INGESTION_FILE"/>
+    </logger>
+    
+    <!-- Reduce noise from Spring/Hibernate -->
+    <logger name="org.springframework" level="WARN"/>
+    <logger name="org.hibernate" level="WARN"/>
+    <logger name="com.zaxxer.hikari" level="WARN"/>
+    <logger name="liquibase" level="WARN"/>
+    <logger name="org.apache.kafka" level="WARN"/>
+    <logger name="io.confluent" level="WARN"/>
+    
+    <!-- Root logger -->
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+        <appender-ref ref="ERROR_FILE"/>
     </root>
 </configuration>

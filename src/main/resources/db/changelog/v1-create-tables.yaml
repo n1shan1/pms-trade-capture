@@ -117,6 +117,11 @@ databaseChangeLog:
                   name: attempts
                   type: int
                   defaultValue: 0
+              - column:
+                  name: sent_at
+                  type: timestamp
+                  constraints:
+                    nullable: true
 
         # 4. Dead Letter Queue
         - createTable:
@@ -139,14 +144,24 @@ databaseChangeLog:
                   name: error_detail
                   type: text
 
-        # 5. Critical Performance Index for Poller
+        # 5. Critical Performance Indexes
+        # Portfolio-ordered polling index for strict ordering guarantees
         - createIndex:
             tableName: outbox_event
-            indexName: idx_outbox_polling
+            indexName: idx_outbox_portfolio_polling
             columns:
               - column:
+                  name: portfolio_id
+              - column:
                   name: created_at
-                  type: timestamp
-            # Partial index is smaller and faster
-            # Liquibase 'where' support depends on DB, valid for Postgres
+              - column:
+                  name: id
             where: "status = 'PENDING'"
+        
+        # Fast lookup for status changes
+        - createIndex:
+            tableName: outbox_event
+            indexName: idx_outbox_status
+            columns:
+              - column:
+                  name: status

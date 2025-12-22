@@ -223,42 +223,42 @@ services:
       PORT: 9021
 
       
-  # validation-service:
-  #   build:
-  #     context: ../pms-validation
-  #     dockerfile: docker/Dockerfile
-  #   container_name: validation-service
-  #   environment:
-  #     SPRING_APPLICATION_NAME: validation
-  #     DB_HOST: postgres
-  #     DB_PORT: "5432"
-  #     DB_NAME: pmsdb
-  #     DATASOURCE_USER: pms
-  #     DATASOURCE_PASS: pms
-  #     DATASOURCE_DRIVER: org.postgresql.Driver
-  #     HIBERNATE_DDL_AUTO: update
-  #     HIBERNATE_SHOW_SQL: "false"
-  #     HIBERNATE_FORMAT_SQL: "true"
-  #     HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
-  #     REDIS_HOST: redis
-  #     REDIS_PORT: "6379"
-  #     REDIS_TIMEOUT: 2s
-  #     CACHE_TYPE: redis
-  #     KAFKA_BOOTSTRAP_SERVERS: kafka:19092
-  #     KAFKA_CONSUMER_GROUP_ID: validation-consumer-group
-  #     SCHEMA_REGISTRY_URL: http://schema-registry:8081
-  #     SERVER_PORT: "8080"
-  #     INCOMING_TRADES_TOPIC: raw-trades-topic
-  #     OUTGOING_VALID_TRADES_TOPIC: valid-trades-topic
-  #     OUTGOING_INVALID_TRADES_TOPIC: invalid-trades-topic
-  #     LOGGING_LEVEL: DEBUG
-  #   ports:
-  #     - "8080:8080"
-  #   depends_on:
-  #     - postgres
-  #     - kafka
-  #     - schema-registry
-  #     - redis
+  validation-service:
+    build:
+      context: ../pms-validation
+      dockerfile: docker/Dockerfile
+    container_name: validation-service
+    environment:
+      SPRING_APPLICATION_NAME: validation
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: pmsdb
+      DATASOURCE_USER: pms
+      DATASOURCE_PASS: pms
+      DATASOURCE_DRIVER: org.postgresql.Driver
+      HIBERNATE_DDL_AUTO: update
+      HIBERNATE_SHOW_SQL: "false"
+      HIBERNATE_FORMAT_SQL: "true"
+      HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_TIMEOUT: 2s
+      CACHE_TYPE: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      KAFKA_CONSUMER_GROUP_ID: validation-consumer-group
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      SERVER_PORT: "8080"
+      INCOMING_TRADES_TOPIC: raw-trades-topic
+      OUTGOING_VALID_TRADES_TOPIC: valid-trades-topic
+      OUTGOING_INVALID_TRADES_TOPIC: invalid-trades-topic
+      LOGGING_LEVEL: DEBUG
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - kafka
+      - schema-registry
+      - redis
   
 volumes:
   pgdata:

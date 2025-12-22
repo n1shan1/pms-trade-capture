@@ -46,8 +46,15 @@ public class BatchPersistenceService {
 
     /**
      * Atomically persists a batch of trades to SafeStore and Outbox.
-     * Returns TRUE if successful (or idempotent duplicate), FALSE if retriable
-     * error.
+     * 
+     * Behavior:
+     * - Valid messages: Saved to SafeStore + Outbox (will be published to Kafka)
+     * - Invalid messages: Saved to SafeStore (marked invalid) + DLQ, NO Outbox entry
+     * 
+     * Exceptions:
+     * - CallNotPermittedException: Circuit breaker open (DB unavailable) - caller should retry
+     * - DataIntegrityViolationException: Duplicate trade_id (idempotent - safe to ignore)
+     * - Other exceptions: Transient DB errors - caller should retry
      */
     @Transactional
     @CircuitBreaker(name = CB_NAME)

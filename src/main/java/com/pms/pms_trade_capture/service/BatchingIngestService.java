@@ -180,9 +180,19 @@ public class BatchingIngestService implements SmartLifecycle {
     }
 
     private void processBatchLogic(List<PendingStreamMessage> batch) {
+        // Safety: Empty batch check (defensive programming)
+        if (batch == null || batch.isEmpty()) {
+            log.warn("processBatchLogic called with empty batch. Skipping.");
+            return;
+        }
+
         try {
             // 1. FAST PATH (Batch)
             persistenceService.persistBatch(batch);
+            
+            // CRITICAL: Commit offset for the LAST message in batch
+            // This advances RabbitMQ stream regardless of validity
+            // Invalid messages are in SafeStore + DLQ, NOT in Outbox (correct behavior)
             commitOffset(batch.get(batch.size() - 1));
 
         } catch (CallNotPermittedException e) {
@@ -205,6 +215,7 @@ public class BatchingIngestService implements SmartLifecycle {
                 }
             }
 
+            // Commit offset for last successfully processed message (or last attempted)
             if (lastSuccess != null) {
                 commitOffset(lastSuccess);
             }
