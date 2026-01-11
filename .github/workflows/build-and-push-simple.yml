@@ -32,12 +32,13 @@ jobs:
       - name: Set image name
         id: set_image
         run: |
-          # Allow explicit override of image repo via secret DOCKERHUB_REPO (e.g. "myuser/pms-trade-capture").
-          # If not provided, fall back to the GitHub repo (owner/repo).
-          if [ -n "${{ secrets.DOCKERHUB_REPO }}" ]; then
-            echo "IMAGE=${{ secrets.DOCKERHUB_REPO }}" >> "$GITHUB_OUTPUT"
+          # Use Docker Hub username to construct the image repo (e.g. "myuser/pms-trade-capture")
+          # This ensures we push to your personal Docker Hub account, not the GitHub org
+          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ]; then
+            echo "IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/pms-trade-capture" >> "$GITHUB_OUTPUT"
           else
-            echo "IMAGE=${{ github.repository }}" >> "$GITHUB_OUTPUT"
+            echo "Error: DOCKERHUB_USERNAME secret is required"
+            exit 1
           fi
 
       - name: Extract metadata
@@ -61,5 +62,5 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 # Required secrets:
-# - DOCKERHUB_USERNAME: Your Docker Hub username
+# - DOCKERHUB_USERNAME: Your Docker Hub username (used to construct image repo as "username/pms-trade-capture")
 # - DOCKERHUB_TOKEN: Docker Hub personal access token (not password)
