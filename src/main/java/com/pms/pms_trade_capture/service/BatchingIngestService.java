@@ -20,6 +20,9 @@ import org.springframework.stereotype.Service;
 import com.pms.pms_trade_capture.domain.PendingStreamMessage;
 import com.pms.pms_trade_capture.stream.StreamConsumerManager;
 import com.rabbitmq.stream.MessageHandler;
+import com.pms.rttm.client.clients.RttmClient;
+import com.pms.rttm.client.dto.ErrorEventPayload;
+import com.pms.rttm.client.enums.EventStage;
 
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 
@@ -31,6 +34,7 @@ public class BatchingIngestService implements SmartLifecycle {
     private final StreamOffsetManager offsetManager;
     private final StreamConsumerManager consumerManager;
     private final ScheduledExecutorService scheduler;
+    private final RttmClient rttmClient;
 
     private final ReentrantLock bufferLock = new ReentrantLock();
 
@@ -41,6 +45,9 @@ public class BatchingIngestService implements SmartLifecycle {
 
     @Value("${app.ingest.batch.flush-interval-ms:100}")
     private long flushIntervalMs;
+
+    @Value("${spring.application.name}")
+    private String serviceName;
 
     // Single Ordered Buffer (Fixes Offset Gap Bug)
     // private final List<PendingStreamMessage> currentBatch = new ArrayList<>();
@@ -54,11 +61,13 @@ public class BatchingIngestService implements SmartLifecycle {
             BatchPersistenceService persistenceService,
             StreamOffsetManager offsetManager,
             @Qualifier("ingestScheduler") ScheduledExecutorService scheduler,
-            @Lazy StreamConsumerManager consumerManager) {
+            @Lazy StreamConsumerManager consumerManager,
+            RttmClient rttmClient) {
         this.consumerManager = consumerManager;
         this.persistenceService = persistenceService;
         this.offsetManager = offsetManager;
         this.scheduler = scheduler;
+        this.rttmClient = rttmClient;
     }
 
     @Override
@@ -200,6 +209,7 @@ public class BatchingIngestService implements SmartLifecycle {
 
         } catch (Exception e) {
             log.warn("Batch Failed. Switching to Safe Path. Error: {}", e.getMessage());
+            sendErrorEvent("Batch persistence failed", e.getMessage());
 
             // 2. SAFE PATH (Single Item Fallback)
             PendingStreamMessage lastSuccess = null;
@@ -212,6 +222,7 @@ public class BatchingIngestService implements SmartLifecycle {
                     throw cbEx; // DB died mid-loop -> Stop & Retry
                 } catch (Exception ex) {
                     log.error("Unexpected error in safe path", ex);
+                    sendErrorEvent("Single item persistence failed", ex.getMessage());
                 }
             }
 
@@ -226,6 +237,25 @@ public class BatchingIngestService implements SmartLifecycle {
         MessageHandler.Context context = msg.getContext();
         if (context != null) {
             context.storeOffset();
+        }
+    }
+
+    /**
+     * Send error event to RTTM when ingestion fails
+     */
+    private void sendErrorEvent(String errorType, String errorMessage) {
+        try {
+            ErrorEventPayload errorEvent = ErrorEventPayload.builder()
+                    .serviceName(serviceName)
+                    .errorType(errorType)
+                    .errorMessage(errorMessage)
+                    .eventStage(EventStage.INGESTED)
+                    .build();
+
+            rttmClient.sendErrorEvent(errorEvent);
+            log.debug("Sent error event to RTTM: {}", errorType);
+        } catch (Exception ex) {
+            log.warn("Failed to send error event to RTTM: {}", ex.getMessage());
         }
     }
 }

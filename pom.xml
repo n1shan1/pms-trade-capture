@@ -50,6 +50,12 @@
         </repository>
     </repositories>
     <dependencies>
+            <!-- PMS RTTM Client -->
+        <dependency>
+            <groupId>io.github.pms-org</groupId>
+            <artifactId>pms-rttm-client</artifactId>
+            <version>2.3.0</version>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
