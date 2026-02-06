@@ -41,6 +41,21 @@ spring:
     compose:
       enabled: false
 
+rttm:
+  client:
+    mode: ${RTTM_MODE:kafka}
+    kafka:
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+      topics:
+        trade-events: ${KAFKA_TOPIC_TRADE_EVENTS:rttm.trade.events}
+        dlq-events: ${KAFKA_TOPIC_DLQ_EVENTS:rttm.dlq.events}
+        queue-metrics: ${KAFKA_TOPIC_QUEUE_METRICS:rttm.queue.metrics}
+        error-events: ${KAFKA_TOPIC_ERROR_EVENTS:rttm.error.events}
+    send-timeout-ms: ${RTTM_SEND_TIMEOUT_MS:3000}
+    retry:
+      max-attempts: ${RTTM_RETRY_MAX_ATTEMPTS:3}
+      backoff-ms: ${RTTM_RETRY_BACKOFF_MS:100}
+
 logging:
   level:
     root: INFO

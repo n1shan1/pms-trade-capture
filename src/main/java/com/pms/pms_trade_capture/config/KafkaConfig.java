@@ -1,5 +1,6 @@
 package com.pms.pms_trade_capture.config;
 
+import com.google.protobuf.MessageLite;
 import io.confluent.kafka.serializers.protobuf.KafkaProtobufSerializer;
 import io.confluent.kafka.serializers.protobuf.KafkaProtobufSerializerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -50,4 +51,34 @@ public class KafkaConfig {
     public KafkaTemplate<String, TradeEventProto> kafkaTemplate() {
         return new KafkaTemplate<>(producerFactory());
     }
+
+    	// Generic KafkaTemplate for RTTM Client to send any MessageLite (protobuf
+	// messages)
+	@Bean
+	ProducerFactory<String, MessageLite> messageLiteProducerFactory() {
+		Map<String, Object> props = new HashMap<>();
+		props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaBootstrapServers);
+		props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+		props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
+				io.confluent.kafka.serializers.protobuf.KafkaProtobufSerializer.class);
+		props.put("schema.registry.url", schemaRegistryUrl);
+
+		// Retry configuration
+		props.put(ProducerConfig.RETRIES_CONFIG, 5);
+		props.put(ProducerConfig.RETRY_BACKOFF_MS_CONFIG, 1000);
+		props.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, 30000);
+		props.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, 15000);
+
+		// Safe producer
+		props.put(ProducerConfig.ACKS_CONFIG, "all");
+		props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+
+		return new DefaultKafkaProducerFactory<>(props);
+	}
+
+	@Bean
+	KafkaTemplate<String, MessageLite> messageLiteKafkaTemplate() {
+		return new KafkaTemplate<>(messageLiteProducerFactory());
+	}
+
 }

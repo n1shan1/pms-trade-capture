@@ -31,17 +31,20 @@ public class BatchPersistenceService {
     private final OutboxRepository outboxRepository;
     private final DlqRepository dlqRepository;
     private final AppMetrics metrics;
+    private final RttmTelemetryService rttmTelemetry;
 
     private static final String CB_NAME = "pmsDb";
 
     public BatchPersistenceService(SafeStoreRepository safeStoreRepository,
             OutboxRepository outboxRepository,
             DlqRepository dlqRepository,
-            AppMetrics metrics) {
+            AppMetrics metrics,
+            RttmTelemetryService rttmTelemetry) {
         this.safeStoreRepository = safeStoreRepository;
         this.outboxRepository = outboxRepository;
         this.dlqRepository = dlqRepository;
         this.metrics = metrics;
+        this.rttmTelemetry = rttmTelemetry;
     }
 
     /**
@@ -58,8 +61,15 @@ public class BatchPersistenceService {
         for (PendingStreamMessage msg : batch) {
             prepareEntities(msg, safeTrades, outboxEvents);
         }
-        if (!safeTrades.isEmpty())
+        if (!safeTrades.isEmpty()) {
             safeStoreRepository.saveAll(safeTrades);
+            // Send RTTM event for each persisted trade
+            for (SafeStoreTrade trade : safeTrades) {
+                if (trade.isValid()) {
+                    rttmTelemetry.sendTradePersisted(trade.getTradeId().toString());
+                }
+            }
+        }
         if (!outboxEvents.isEmpty())
             outboxRepository.saveAll(outboxEvents);
         metrics.incrementIngestSuccess(safeTrades.size());
@@ -73,8 +83,15 @@ public class BatchPersistenceService {
             List<OutboxEvent> outboxEvents = new ArrayList<>();
             prepareEntities(msg, safeTrades, outboxEvents);
 
-            if (!safeTrades.isEmpty())
+            if (!safeTrades.isEmpty()) {
                 safeStoreRepository.saveAll(safeTrades);
+                // Send RTTM event for persisted trade
+                for (SafeStoreTrade trade : safeTrades) {
+                    if (trade.isValid()) {
+                        rttmTelemetry.sendTradePersisted(trade.getTradeId().toString());
+                    }
+                }
+            }
             if (!outboxEvents.isEmpty())
                 outboxRepository.saveAll(outboxEvents);
 
