@@ -26,19 +26,18 @@ public class KafkaConfig {
 
     @Value("${spring.kafka.properties.schema.registry.url}")
     private String schemaRegistryUrl;
-    
+
     @Value("${spring.kafka.producer.properties.max.in.flight.requests.per.connection:5}")
     private int maxInFlightRequests;
-    
+
     @Value("${spring.kafka.producer.properties.linger.ms:20}")
     private int lingerMs;
-    
+
     @Value("${spring.kafka.producer.properties.batch.size:65536}")
     private int batchSize;
-    
+
     @Value("${spring.kafka.consumer.group-id:trade-capture-consumer}")
     private String metricsConsumerGroupId;
-
 
     public ProducerFactory<String, TradeEventProto> producerFactory() {
         Map<String, Object> config = new HashMap<>();
@@ -62,7 +61,7 @@ public class KafkaConfig {
         return new DefaultKafkaProducerFactory<>(config);
 
     }
-    
+
     @Bean(name = "tradeEventKafkaTemplate")
     @Primary
     public KafkaTemplate<String, TradeEventProto> tradeEventKafkaTemplate() {
@@ -81,6 +80,7 @@ public class KafkaConfig {
         config.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         config.put(ConsumerConfig.GROUP_ID_CONFIG, metricsConsumerGroupId + "-metrics");
         config.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
+        config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         return new KafkaConsumer<>(config);
     }
 }
